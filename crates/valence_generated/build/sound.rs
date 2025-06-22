@@ -5,9 +5,9 @@ use serde::Deserialize;
 use valence_build_utils::{ident, rerun_if_changed};
 
 #[derive(Deserialize, Debug)]
-struct Sound {
-    id: u16,
-    name: String,
+pub(crate) struct Sound {
+    pub id: u16,
+    pub name: String,
 }
 
 pub(crate) fn build() -> anyhow::Result<TokenStream> {

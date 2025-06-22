@@ -1,5 +1,6 @@
 use std::io::Write;
 use std::mem;
+use serde::{Deserialize, Deserializer};
 use valence_generated::attributes::{EntityAttribute, EntityAttributeOperation};
 pub use valence_generated::item::ItemKind;
 use valence_generated::registry_id::RegistryId;
@@ -56,56 +57,80 @@ impl Default for ItemStack {
 
 type StrIdent = Ident<String>;
 
-#[derive(Clone, PartialEq, Debug, Encode, Decode)]
+#[derive(Clone, PartialEq, Debug, Encode, Decode, Deserialize)]
+#[serde(tag = "_")]
 pub enum ItemComponent {
     /// Customizable data that doesn't fit any specific component.
+    ///
+    /// Default: none
     CustomData {
         /// Always a Compound Tag.
         data: Compound,
     },
     /// Maximum stack size for the item.
+    ///
+    /// Default: Defaults to max stack size of item kind, Used by all kinds
     MaxStackSize {
         /// Ranges from 1 to 99.
         max_stack_size: VarInt,
     },
     /// The maximum damage the item can take before breaking.
+    ///
+    /// Default: Used by all damageable kinds (68)
     MaxDamage {
         max_damage: VarInt,
     },
     /// The current damage of the item.
+    ///
+    /// Default: 0, Used by all damageable kinds (68)
     Damage {
         damage: VarInt,
     },
     /// Marks the item as unbreakable.
+    ///
+    /// Default: none
     Unbreakable,
     /// Item's custom name. Normally shown in italic, and changeable at an
     /// anvil.
+    ///
+    /// Default: none
     CustomName {
         name: Text,
     },
     /// Override for the item's default name. Shown when the item has no custom
     /// name.
+    ///
+    /// Default: Used by all kinds
     ItemName {
+        #[serde(rename = "translate")]
         name: Text,
     },
     /// Item's model.
+    ///
+    /// Default: Used by all kinds
     ItemModel {
         /// The model identifier.
+        #[serde(rename = "value")]
         model: StrIdent,
     },
     /// Item's lore.
+    ///
+    /// Default: Empty, Used by all kinds
     Lore {
         /// The lore lines.
+        #[serde(rename = "value")]
         lines: Vec<Text>,
     },
     /// Item's rarity. This affects the default color of the item's name.
     Rarity {
+        #[serde(rename = "value")]
         rarity: Rarity,
     },
     /// The enchantments of the item.
     Enchantments {
         /// The enchantments. (The ID of the enchantment in the enchantment
         /// registry, The level of the enchantment)
+        #[serde(rename = "value")]
         enchantments: Vec<(VarInt, VarInt)>,
     },
     /// List of blocks this block can be placed on when in adventure mode.
@@ -486,30 +511,25 @@ pub enum ItemComponent {
     },
     /// Decorations on the four sides of a pot.
     PotDecorations {
-        /// The number of elements in the following array.
-        number_of_decorations: VarInt,
         /// The decorations.
+        ///
+        /// Default: 4x brick, Only used by decorated_pot
+        #[serde(rename="value")]
         decorations: Vec<VarInt>,
     },
     /// Items inside a container of any type.
-    Container {
-        /// The number of elements in the following array.
-        number_of_items: VarInt,
+    Container  {
         /// The items.
         // FIX: items: Vec<ItemStack>,
         items: u8,
     },
     /// State of a block.
     BlockState {
-        /// Number of elements in the following array.
-        number_of_properties: VarInt,
         /// The properties.
         properties: Vec<(String, String)>,
     },
     /// Bees inside a hive.
     Bees {
-        /// Number of elements in the following array.
-        number_of_bees: VarInt,
         /// The bees.
         bees: Vec<(Compound, VarInt, VarInt)>,
     },
@@ -524,7 +544,10 @@ pub enum ItemComponent {
         data: Compound,
     },
     /// Changes the sound that plays when the item breaks.
+    ///
+    /// Default: Used in all kinds
     BreakSound {
+        #[serde(flatten)]
         sound_event: SoundId,
     },
     /// The biome variant of a villager.
@@ -724,7 +747,7 @@ impl Decode<'_> for HashedItemStack {
     }
 }
 
-#[derive(Clone, PartialEq, Debug, Encode, Decode)]
+#[derive(Clone, PartialEq, Debug, Encode, Decode, Deserialize)]
 pub enum Rarity {
     Common,
     Uncommon,
@@ -744,7 +767,7 @@ impl Rarity {
     }
 }
 
-#[derive(Clone, PartialEq, Debug, Encode, Decode)]
+#[derive(Clone, PartialEq, Debug, Encode, Decode, Deserialize)]
 pub enum ConsumeEffect {
     ApplyEffects {
         effects: Vec<PotionEffect>,
@@ -764,7 +787,7 @@ pub enum ConsumeEffect {
 
 /// Describes all the aspects of a potion effect. 
 // TODO: move this somewhere else
-#[derive(Clone, PartialEq, Debug, Encode, Decode)]
+#[derive(Clone, PartialEq, Debug, Encode, Decode, Deserialize)]
 pub struct PotionEffect {
     /// The ID of the effect in the potion effect type registry.
     pub id: VarInt,
@@ -772,7 +795,7 @@ pub struct PotionEffect {
 
 }
 
-#[derive(Clone, PartialEq, Debug, Encode, Decode)]
+#[derive(Clone, PartialEq, Debug, Encode, Decode, Deserialize)]
 pub struct PotionEffectDetails {
     pub amplifier: VarInt,
     /// -1 for infinite.
@@ -786,7 +809,7 @@ pub struct PotionEffectDetails {
     // pub hidden_effect: Option<Box<PotionEffectDetails>>,
 }
 
-#[derive(Clone, PartialEq, Debug, Encode, Decode)]
+#[derive(Clone, PartialEq, Debug, Encode, Decode, Deserialize)]
 pub struct DamageReduction {
     pub horizontal_blocking_angle: f32,
     /// IDs in the `minecraft:damage_kind` registry.
@@ -795,14 +818,14 @@ pub struct DamageReduction {
     pub factor: f32,
 }
 
-#[derive(Clone, PartialEq, Debug, Encode, Decode)]
+#[derive(Clone, PartialEq, Debug, Encode, Decode, Deserialize)]
 pub struct BlockPredicate {
     pub blocks: Option<IDSet>,
     pub properties: Option<Vec<Property>>,
     pub nbt: Option<Compound>,
 }
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug, Deserialize)]
 pub struct Property {
     pub name: String,
     pub is_exact_match: bool,
@@ -868,6 +891,15 @@ pub struct ItemAttribute {
     pub slot: AttributeSlot,
 }
 
+impl <'de> Deserialize<'de> for ItemAttribute {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>
+    {
+        todo!()
+    }
+}
+
 #[derive(Clone, PartialEq, Debug, Encode, Decode)]
 pub enum AttributeSlot {
     Any,
@@ -882,7 +914,8 @@ pub enum AttributeSlot {
     Body,
 }
 
-#[derive(Clone, PartialEq, Debug, Encode, Decode)]
+#[derive(Clone, PartialEq, Debug, Encode, Decode, Deserialize)]
+#[serde(rename_all="lowercase")]
 pub enum EquipSlot {
     Hand,
     Feet,
@@ -891,15 +924,18 @@ pub enum EquipSlot {
     Head,
     Offhand,
     Body,
+    Saddle
 }
 
-#[derive(Clone, Copy, PartialEq, Debug, Encode, Decode)]
+#[derive(Clone, Copy, PartialEq, Debug, Encode, Decode, Deserialize)]
+#[repr(u8)]
 pub enum MapPostProcessingType {
     Lock,
     Expand,
 }
 
-#[derive(Clone, Copy, PartialEq, Debug, Encode, Decode)]
+#[derive(Clone, Copy, PartialEq, Debug, Encode, Decode, Deserialize)]
+#[repr(u8)]
 pub enum ConsumableAnimation {
     None,
     Eat,
@@ -913,7 +949,7 @@ pub enum ConsumableAnimation {
     Brush,
 }
 
-#[derive(Clone, PartialEq, Debug, Encode, Decode)]
+#[derive(Clone, PartialEq, Debug, Encode, Decode, Deserialize)]
 pub struct ToolRule {
     pub blocks: IDSet,
     pub speed: Option<f32>,
@@ -1043,7 +1079,7 @@ impl ItemStack {
     /// Creates a new item stack with default components removed.
     #[must_use]
     pub fn new(item: ItemKind, count: i8) -> Self {
-        let components = item.default_components_patchable_removed();
+        let components = item.default_components_removed();
 
         Self {
             item,
@@ -1055,7 +1091,7 @@ impl ItemStack {
     /// Creates a new item stack with the vanilla default components for the
     /// given [`ItemKind`].
     pub fn new_vanilla(item: ItemKind, count: i8) -> Self {
-        let components = item.default_components_patchable();
+        let components = item.default_components();
 
         Self {
             item,
@@ -1081,8 +1117,11 @@ impl ItemStack {
         self.item
             .default_components()
             .iter()
-            .filter_map(|component| component.as_ref().map(|boxed| *boxed.clone()))
-            .collect()
+            .filter_map(|component| match component {
+                Patchable::Default(v) => Some(*v.clone()),
+                Patchable::Added((v, _)) => Some(*v.clone()),
+                _ => None,
+            }).collect()
     }
 
     /// Attach a component to the item stack.
@@ -1099,8 +1138,7 @@ impl ItemStack {
     pub fn remove_component<I: Into<usize>>(&mut self, id: I) -> Option<ItemComponent> {
         let id = id.into();
         if id < NUM_ITEM_COMPONENTS {
-            let removed_state = self.item.default_components()[id].as_ref().map_or(Patchable::None, |_| Patchable::Removed);
-            mem::replace(&mut self.components[id], removed_state).to_option().map(|boxed| *boxed)
+            mem::replace(&mut self.components[id], Patchable::Removed).to_option().map(|boxed| *boxed)
         } else {
             None
         }
@@ -1202,7 +1240,7 @@ impl<'a> Decode<'a> for ItemStack {
 
         let item = ItemKind::decode(r)?;
 
-        let default_components = item.default_components_patchable();
+        let default_components = item.default_components();
 
         let components_added_count = VarInt::decode(r)?.0 as usize;
         let components_removed_count = VarInt::decode(r)?.0 as usize;
@@ -1245,42 +1283,31 @@ impl<'a> Decode<'a> for ItemStack {
 
 pub trait ItemKindExt {
     /// Returns the default components for the [`ItemKind`].
-    fn default_components(&self) -> [Option<Box<ItemComponent>>; NUM_ITEM_COMPONENTS];
-
-    fn default_components_patchable(&self) -> [Patchable<Box<ItemComponent>>; NUM_ITEM_COMPONENTS];
-    fn default_components_patchable_removed(&self) -> [Patchable<Box<ItemComponent>>; NUM_ITEM_COMPONENTS];
+    fn default_components(&self) -> [Patchable<Box<ItemComponent>>; NUM_ITEM_COMPONENTS];
+    fn default_components_removed(&self) -> [Patchable<Box<ItemComponent>>; NUM_ITEM_COMPONENTS];
 }
 
 impl ItemKindExt for ItemKind {
-    fn default_components(&self) -> [Option<Box<ItemComponent>>; NUM_ITEM_COMPONENTS] {
-        //     let ser_default_components = self.ser_components();
-        //     let mut components = [const { None }; NUM_ITEM_COMPONENTS];
-
-        //     for component in ser_default_components {
-        //         let item_component = ItemComponent::from_serialized(component);
-        //         let id = item_component.id() as usize;
-        //         components[id] = Some(Box::new(item_component));
-        //     }
-
-        //     components
-        // }
-
-        [const { None }; NUM_ITEM_COMPONENTS]
-    }
-
-    fn default_components_patchable(&self) -> [Patchable<Box<ItemComponent>>; NUM_ITEM_COMPONENTS] {
+    fn default_components(&self) -> [Patchable<Box<ItemComponent>>; NUM_ITEM_COMPONENTS] {
         let mut result = [const { Patchable::None }; NUM_ITEM_COMPONENTS];
-        for (i, component) in self.default_components().into_iter().enumerate() {
-            if let Some(component) = component {
-                result[i] = Patchable::Default(component);
+
+        let ser_default_components = self.ser_components();
+        for value in ser_default_components {
+            match serde_json::from_str::<ItemComponent>(value) {
+                Ok(component) => {
+                    let id = component.id();
+                    result[id as usize] = Patchable::Default(Box::new(component));
+                }
+                Err(err) => println!("Failed to parse item default component: {}", err),
             }
         }
         result
     }
-    fn default_components_patchable_removed(&self) -> [Patchable<Box<ItemComponent>>; NUM_ITEM_COMPONENTS] {
+
+    fn default_components_removed(&self) -> [Patchable<Box<ItemComponent>>; NUM_ITEM_COMPONENTS] {
         let mut result = [const { Patchable::None }; NUM_ITEM_COMPONENTS];
-        for (i, component) in self.default_components().into_iter().enumerate() {
-            if let Some(_) = component {
+        for (i, component) in self.default_components().iter().enumerate() {
+            if let Patchable::Default(_) = component {
                 result[i] = Patchable::Removed;
             }
         }
@@ -1305,5 +1332,16 @@ mod tests {
         let not_empty_stack = ItemStack::new(ItemKind::Stone, 10);
 
         assert!(!not_empty_stack.is_empty());
+    }
+
+    #[test]
+    fn test_component_defaults_deserialization() {
+        for kind in ItemKind::ALL {
+            let expected = kind.ser_components();
+            let actual = kind.default_components().iter()
+                .filter(|component| matches!(component, Patchable::Default(_)))
+                .count();
+            assert_eq!(expected.len(), actual, "Failed for: {:?} data: {:?}", kind, expected);
+        }
     }
 }

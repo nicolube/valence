@@ -10,6 +10,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
+import net.minecraft.component.type.EquippableComponent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import rs.valence.extractor.extractors.*;

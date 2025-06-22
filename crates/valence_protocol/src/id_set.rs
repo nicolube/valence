@@ -1,10 +1,10 @@
 use std::io::Write;
-
+use serde::Deserialize;
 use valence_generated::registry_id::RegistryId;
 
 use crate::{Decode, Encode, VarInt};
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Deserialize)]
 /// Represents a set of IDs in a certain registry, either directly (enumerated
 /// IDs) or indirectly (tag name).
 ///

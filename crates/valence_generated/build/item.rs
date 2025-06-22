@@ -1,11 +1,14 @@
+use std::collections::{BTreeMap, HashMap};
 use anyhow::Ok;
 use heck::ToPascalCase;
 use proc_macro2::TokenStream;
 use quote::quote;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use serde_value::Value;
 use valence_build_utils::{ident, rerun_if_changed};
+use crate::sound::Sound;
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize)]
 struct Item {
     id: u16,
     name: String,
@@ -15,6 +18,7 @@ struct Item {
     enchantability: u8,
     fireproof: bool,
     food: Option<FoodComponent>,
+    components: HashMap<String, Value>,
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -27,12 +31,117 @@ struct FoodComponent {
     // TODO: effects
 }
 
+
+#[derive(Serialize, Clone, Debug)]
+struct SerializedComponent {
+    #[serde(rename = "_")]
+    key: String,
+    value: Value
+}
+
 pub(crate) fn build() -> anyhow::Result<TokenStream> {
     rerun_if_changed(["extracted/items.json"]);
 
+    let sounds = serde_json::from_str::<Vec<Sound>>(include_str!("../extracted/sounds.json"))?
+        .into_iter()
+        .map(|sound| (sound.name, sound.id))
+        .collect::<BTreeMap<_, _>>();
     let items = serde_json::from_str::<Vec<Item>>(include_str!("../extracted/items.json"))?;
+    let items_to_id = items.iter()
+        .map(|item| (item.name.clone(), item.id))
+        .collect::<BTreeMap<_, _>>();
 
     let item_kind_count = items.len();
+    let item_kind_component_defaults_ser = items
+        .iter()
+        .map(|item| {
+        let name = ident(item.name.to_pascal_case());
+        let components = item.components.iter().filter_map(|(id, raw)| {
+            let key = id.strip_prefix("minecraft:").unwrap().replace("/", "_").to_pascal_case();
+            let value: Value = match (key.as_str(), raw) {
+                (_, Value::Seq(arr)) if arr.is_empty() => return None,
+                (_, Value::Map(onj)) if onj.is_empty() => return None,
+                (_, Value::Map(onj)) if onj.is_empty() => return None,
+                ("MaxStackSize", _) => return None,
+                ("RepairCost", Value::U64(0)) => return None,
+                ("BreakSound", Value::String(v)) => {
+                    let sound = *sounds.get(v.strip_prefix("minecraft:").unwrap())
+                        .expect(&format!("Sound not found: {v}"));
+                    Value::Map(BTreeMap::from([(Value::String("Id".to_string()), Value::U16(sound)); 1]))
+                },
+                ("Rarity", Value::String(s)) => Value::String(s.to_pascal_case()),
+                ("DamageResistant", Value::Map(obj)) => Value::Map(obj.iter().map(|(k, v)| {
+                    (k.clone(), match v {
+                        Value::String(v) => Value::String(v.strip_prefix("#").unwrap().to_string()),
+                        _ => v.clone()
+                    })
+                }).collect()),
+                ("PotDecorations", Value::Seq(arr)) => {
+                    Value::Seq(arr.into_iter()
+                        .map(|id| match id {
+                            Value::String(s) => Value::U16(
+                                items_to_id.get(s.strip_prefix("minecraft:").unwrap())
+                                    .expect("Expected valid id.").clone()
+                            ),
+                            _ => panic!("Pot decoration should be material Ident!")
+                        }).collect())
+                },
+                ("Equippable", Value::Map(map)) => {
+                    let mut map = map.clone();
+                    // According to NMS defaults to "item.armor.equip_generic"
+                    // See EquippableComponent.Builder#Builder
+                    let key = Value::String("equip_sound".to_string());
+                    let sound = match map.get(&key) {
+                        Some(Value::String(sound)) => sound.strip_prefix("minecraft:").unwrap(),
+                        None => "item.armor.equip_generic",
+                        _ => panic!("Sound should be a string")
+                    };
+                    let sound = *sounds.get(sound)
+                        .expect(&format!("Sound not found: {sound}"));
+                    map.insert(
+                        key,
+                        Value::Map(BTreeMap::from([(Value::String("Id".to_string()), Value::U16(sound)); 1]))
+                    );
+                    // Default to true in NMS
+                    // See EquippableComponent.Builder#Builder
+                    for flag in ["swappable", "dispensable", "damage_on_hurt"] {
+                        let key = Value::String(flag.to_string());
+                        if !map.contains_key(&key) {
+                            map.insert(key, Value::Bool(true));
+                        }
+                    }
+                    Value::Map(map)
+                },
+                ("BlockState", Value::Map(map)) => {
+                    let data = Value::Seq(map.iter()
+                        .map(|(k, v)| Value::Seq(vec![k.clone(), v.clone()]))
+                        .collect());
+                    Value::Map(BTreeMap::from([(Value::String("properties".to_string()), data); 1]))
+                },
+                (_, v) => v.clone()
+            };
+
+            let value = match value {
+                // When map flatten for ease of deserialization
+                Value::Map(mut obj) => {
+                    obj.insert(Value::String("_".to_string()), Value::String(key));
+                    serde_json::to_string(&obj).unwrap()
+                }
+                _ => {
+                    serde_json::to_string(&SerializedComponent {
+                        key,
+                        value: value.clone()
+                    }).unwrap()
+                }
+            };
+            Some(quote! {
+                #value,
+            })
+        }).collect::<TokenStream>();
+        quote! {
+            Self::#name => vec![#components],
+        }
+    }).collect::<TokenStream>();
 
     let item_kind_from_raw_id_arms = items
         .iter()
@@ -281,6 +390,16 @@ pub(crate) fn build() -> anyhow::Result<TokenStream> {
                 match self {
                     #item_kind_to_fireproof_arms
                     _ => false
+                }
+            }
+
+
+            /// Returns the enchantability of the item kind.
+            ///
+            /// If the item doesn't have durability, `0` is returned.
+            pub fn ser_components(self) -> Vec<&'static str> {
+                match self {
+                    #item_kind_component_defaults_ser
                 }
             }
 

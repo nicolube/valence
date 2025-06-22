@@ -2,11 +2,12 @@ use std::fmt::Debug;
 use std::io::Write;
 
 use anyhow::Error;
+use serde::Deserialize;
 use valence_generated::registry_id::RegistryId;
 
 use crate::{Decode, Encode, VarInt};
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Deserialize)]
 pub enum IdOr<T: Encode + Clone + Debug + PartialEq> {
     Id(RegistryId),
     Inline(T),

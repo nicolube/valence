@@ -24,7 +24,7 @@ pub enum Color {
 
 /// RGB Color
 #[bitfield(u32)]
-#[derive(PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize)]
 pub struct RgbColor {
     _padding: u8,
     /// Red channel

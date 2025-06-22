@@ -16,7 +16,7 @@ encryption = ["dep:aes", "dep:cfb8"]
 compression = ["dep:flate2"]
 
 [dependencies]
-bevy_ecs.workspace = true                                 # TODO: make this optional
+bevy_ecs.workspace = true
 valence_math.workspace = true
 valence_generated.workspace = true
 valence_text.workspace = true
